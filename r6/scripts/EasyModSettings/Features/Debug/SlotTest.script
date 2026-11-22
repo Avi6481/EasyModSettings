@@ -1,0 +1,76 @@
+public class EasyMSTestLink extends GenericNotificationBaseAction {
+  public let m_next: GenericNotificationBaseAction;
+
+  public override function Execute(data: IScriptable) -> Bool {
+    let msg: ListItemData = data as ListItemData;
+    if (msg && StrBeginsWith(msg.label, "EASYMS1|ping")) {
+      msg.label = msg.label + "\n##selftest";
+    }
+    if (this.m_next) {
+      return this.m_next.Execute(data);
+    }
+    return true;
+  }
+
+  public static function Run(system: EasyMSSystem, again: Bool) -> String {
+    let game: GameInstance = system.Game();
+    let result: String = EasyMSTestLink.Store(game) + "; " + EasyMSTestLink.Slot(game, again);
+    EasyMSLog.Trace("self-test: " + result);
+    return result;
+  }
+
+  private static function HasTest(head: GenericNotificationBaseAction) -> Bool {
+    let probe: ListItemData = new ListItemData;
+    probe.label = "EASYMS1|ping";
+    let handled: Bool = head.Execute(probe);
+    return handled && StrFindFirst(probe.label, "\n##selftest") >= 0;
+  }
+
+  private static function Store(game: GameInstance) -> String {
+    let quests: QuestsSystem = GameInstance.GetQuestsSystem(game);
+    if (!quests) {
+      return "store: no quests system";
+    }
+    quests.SetFactStr("easyms_selftest", 7);
+    let back: Int32 = quests.GetFactStr("easyms_selftest");
+    quests.SetFactStr("easyms_selftest", 0);
+    if (back == 7) {
+      return "store OK";
+    }
+    return "store FAILED";
+  }
+
+  private static function Slot(game: GameInstance, again: Bool) -> String {
+    let board: IBlackboard = GameInstance.GetBlackboardSystem(game).Get(GetAllBlackboardDefs().UIGameData);
+    if (!board) {
+      return "slot: no blackboard";
+    }
+    let head: GenericNotificationBaseAction = EasyMSBridge.Head(game);
+    let before: String = "empty";
+    if (head) {
+      before = "had links";
+    }
+    let kept: String = "";
+    if (again) {
+      kept = "; last link gone";
+      if (head && EasyMSTestLink.HasTest(head)) {
+        kept = "; last link kept";
+      }
+    }
+    let link: EasyMSTestLink = new EasyMSTestLink;
+    link.m_next = head;
+    let stored: GenericNotificationBaseAction = link;
+    board.SetVariant(EasyMSBridge.Slot(), stored);
+    let back: GenericNotificationBaseAction = EasyMSBridge.Head(game);
+    if (!back) {
+      return "slot FAILED: lost the link (was " + before + ")" + kept;
+    }
+    let probe: ListItemData = new ListItemData;
+    probe.label = "EASYMS1|ping";
+    let handled: Bool = back.Execute(probe);
+    if (handled && StrFindFirst(probe.label, "\n##selftest") >= 0) {
+      return "slot OK (was " + before + ")" + kept;
+    }
+    return "slot FAILED: no answer" + kept;
+  }
+}

@@ -1,0 +1,42 @@
+@wrapMethod(PauseMenuGameController)
+function PopulateMenuItemList() -> Void {
+  PopulateMenuItemList();
+  let data: PauseMenuListItemData = new PauseMenuListItemData;
+  data.label = EasyMSHooks.MenuLabel();
+  data.eventName = EasyMSHooks.MenuEvent();
+  data.action = PauseMenuAction.OpenSubMenu;
+  this.m_menuListController.PushData(data);
+  EasyMSLog.Trace("pause menu: item added");
+}
+
+@wrapMethod(PauseMenuGameController)
+event OnMenuItemActivated(index: Int32, target: ListItemController) {
+  let data: PauseMenuListItemData = target.GetData() as PauseMenuListItemData;
+  let system: EasyMSSystem = EasyMSSystem.ForController(this);
+  if (data && data.eventName == EasyMSHooks.MenuEvent()) {
+    EasyMSLog.Trace("pause menu: Mod Settings selected");
+    if (system) {
+      system.RequestMods();
+    } else {
+      EasyMSLog.Trace("pause menu: no EasyMSSystem");
+    }
+    this.PlaySound(n"Button", n"OnPress");
+    this.m_menuEventDispatcher.SpawnEvent(n"OnSwitchToSettings");
+    EasyMSLog.Trace("pause menu: OnSwitchToSettings spawned");
+    return;
+  }
+  if (system) {
+    system.CancelMods();
+  }
+  OnMenuItemActivated(index, target);
+}
+
+public class EasyMSHooks {
+  public static function MenuLabel() -> String {
+    return "Mod Settings";
+  }
+
+  public static function MenuEvent() -> CName {
+    return n"OnEasyModSettings";
+  }
+}

@@ -1,0 +1,102 @@
+@addMethod(SettingsMainGameController)
+function EasyMSTabs() -> Void {
+  let screen: EasyMSScreen = this.EasyMSScreen();
+  this.m_groupsSelectorCtrl.Clear();
+  let i: Int32 = 0;
+  while (i < screen.SectionCount()) {
+    let tab: ListItemData = new ListItemData;
+    tab.label = screen.SectionLabel(i);
+    this.m_groupsSelectorCtrl.PushData(tab);
+    i += 1;
+  }
+  this.m_groupsSelectorCtrl.Refresh();
+  this.EasyMSGoSection(0);
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSGoSection(index: Int32) -> Void {
+  let screen: EasyMSScreen = this.EasyMSScreen();
+  if (!screen || index < 0) {
+    return;
+  }
+  screen.SetSection(index);
+  this.m_groupsSelectorCtrl.SetToggledIndex(screen.SectionIndex());
+  this.EasyMSPopulate();
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSPopulate() -> Void {
+  let screen: EasyMSScreen = this.EasyMSScreen();
+  if (!screen) {
+    return;
+  }
+  screen.CommitSliders();
+  screen.ClearRows();
+  screen.DisarmAll();
+  this.m_settingsElements.Clear();
+  inkCompoundRef.RemoveAllChildren(this.m_settingsOptionsList);
+  inkTextRef.SetText(this.m_descriptionText, "");
+  inkTextRef.SetVisible(this.m_descriptionText, false);
+  let page: EasyMSPage = screen.Page();
+  if (!page) {
+    return;
+  }
+  screen.LoadPage();
+  let i: Int32 = 0;
+  while (i < page.options.Size()) {
+    this.EasyMSSpawnRow(screen, page.options[i]);
+    i += 1;
+  }
+  let scroll: inkScrollController = inkWidgetRef.GetController(this.m_scrollPanel) as inkScrollController;
+  if (scroll) {
+    scroll.SetScrollPosition(0.0);
+  }
+  EasyMSLog.Trace("settings: section '" + page.title + "' with " + IntToString(page.options.Size()) + " rows");
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSCategory(label: String) -> Void {
+  let spawned: wref<inkWidget> = this.SpawnFromLocal(inkCompoundRef.Get(this.m_settingsOptionsList), n"settingsCategory");
+  if (!spawned) {
+    return;
+  }
+  let category: SettingsCategoryController = spawned.GetController() as SettingsCategoryController;
+  if (category) {
+    category.EasyMSSetLabel(label);
+  }
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSSpawnRow(screen: EasyMSScreen, option: EasyMSOption) -> Void {
+  if (option.kind == EasyMSKind.Header()) {
+    this.EasyMSCategory(option.label);
+    return;
+  }
+  let library: CName = n"settingsSelectorButton";
+  if (option.kind == EasyMSKind.Toggle()) {
+    library = n"settingsSelectorBool";
+  } else {
+    if (option.kind == EasyMSKind.Slider()) {
+      library = n"settingsSelectorFloat";
+    } else {
+      if (option.kind == EasyMSKind.Choice()) {
+        library = n"settingsSelectorStringList";
+      }
+    }
+  }
+  let spawned: wref<inkWidget> = this.SpawnFromLocal(inkCompoundRef.Get(this.m_settingsOptionsList), library);
+  if (!spawned) {
+    EasyMSLog.Trace("settings: could not spawn " + NameToString(library));
+    return;
+  }
+  let row: SettingsSelectorController = spawned.GetController() as SettingsSelectorController;
+  if (!row) {
+    EasyMSLog.Trace("settings: " + NameToString(library) + " has no SettingsSelectorController");
+    return;
+  }
+  screen.Bind(row, row.GetRootWidget(), option);
+  row.EasyMSSetLabel(option.label);
+  let binding: EasyMSBinding = screen.Find(row);
+  EasyMSRowView.Setup(screen, binding);
+  this.EasyMSWire(row, binding);
+}

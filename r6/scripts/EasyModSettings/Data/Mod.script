@@ -1,0 +1,56 @@
+public class EasyMSProvider {
+  public virtual function Build(mod: EasyMSMod) -> Void {
+    mod.Describe(n"unnamed", "Unnamed Mod", "", "", "");
+  }
+
+  public virtual function OnChanged(system: EasyMSSystem, option: EasyMSOption) -> Void {
+    if (!system || !option) {
+      return;
+    }
+  }
+
+  public virtual function OnAction(system: EasyMSSystem, option: EasyMSOption) -> Void {
+    if (!system || !option) {
+      return;
+    }
+  }
+
+  public virtual function InfoText(system: EasyMSSystem, option: EasyMSOption) -> String {
+    if (!system || !option) {
+      return "";
+    }
+    return option.sideText;
+  }
+}
+
+public class EasyMSMod {
+  public let id: CName;
+  public let name: String;
+  public let version: String;
+  public let author: String;
+  public let description: String;
+  public let root: EasyMSPage;
+  public let pages: array<EasyMSPage>;
+  public let provider: EasyMSProvider;
+  public let remote: Bool;
+  public let pageKeys: array<String>;
+
+  public function Describe(modId: CName, modName: String, modVersion: String, modAuthor: String, modDescription: String) -> Void {
+    this.id = modId;
+    this.name = modName;
+    this.version = modVersion;
+    this.author = modAuthor;
+    this.description = modDescription;
+    if (this.root) {
+      this.root.title = modName;
+    }
+  }
+
+  public function NewPage(title: String) -> EasyMSPage {
+    let page: EasyMSPage = new EasyMSPage;
+    page.title = title;
+    page.mod = this;
+    this.pages.PushBack(page);
+    return page;
+  }
+}

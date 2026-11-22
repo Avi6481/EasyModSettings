@@ -1,0 +1,8 @@
+public class EasyMSInk {
+  public static function Fit(text: String, maxChars: Int32) -> String {
+    if (maxChars <= 3 || StrLen(text) <= maxChars) {
+      return text;
+    }
+    return StrLeft(text, maxChars - 3) + "...";
+  }
+}

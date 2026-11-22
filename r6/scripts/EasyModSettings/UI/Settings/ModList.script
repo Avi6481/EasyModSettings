@@ -1,0 +1,165 @@
+@addMethod(SettingsMainGameController)
+function EasyMSModColumn() -> wref<inkCompoundWidget> {
+  let benchmark: wref<inkWidget> = inkWidgetRef.Get(this.m_benchmarkButton);
+  if (!benchmark) {
+    return NULL;
+  }
+  return benchmark.GetParentWidget() as inkCompoundWidget;
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSBuildModList() -> Void {
+  let screen: EasyMSScreen = this.EasyMSScreen();
+  let column: wref<inkCompoundWidget> = this.EasyMSModColumn();
+  if (!screen || !column) {
+    EasyMSLog.Trace("settings: no column for the mod list");
+    return;
+  }
+  let list: wref<inkCompoundWidget> = this.EasyMSModBox(screen, column);
+  if (!list) {
+    list = column;
+  }
+  screen.ClearCards();
+  let i: Int32 = 0;
+  while (i < screen.ModCount()) {
+    let card: wref<inkWidget> = this.SpawnFromLocal(list, n"sub_menu_item");
+    if (card) {
+      let label: String = screen.ModLabel(i);
+      let generic: GenericButtonController = card.GetControllerByType(n"GenericButtonController") as GenericButtonController;
+      if (generic) {
+        generic.Init(label);
+      }
+      let item: SettingsCategoryItem = card.GetController() as SettingsCategoryItem;
+      if (item) {
+        item.EasyMSSetLabel(label);
+      }
+      card.SetHAlign(inkEHorizontalAlign.Fill);
+      let cardRoot: wref<inkCompoundWidget> = card as inkCompoundWidget;
+      if (cardRoot) {
+        let minSize: wref<inkWidget> = cardRoot.GetWidget(n"minSize");
+        if (minSize) {
+          minSize.SetSize(EasyMSScreen.ListWidth(), 82.0);
+        }
+      }
+      card.RegisterToCallback(n"OnRelease", this, n"OnPressReplayTutorial");
+      card.RegisterToCallback(n"OnHoverOver", this, n"OnSettingHoverOver");
+      screen.AddCard(card, i);
+    } else {
+      EasyMSLog.Trace("settings: could not spawn sub_menu_item");
+    }
+    i += 1;
+  }
+  this.EasyMSWheelTo(false);
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSModBox(screen: EasyMSScreen, column: wref<inkCompoundWidget>) -> wref<inkCompoundWidget> {
+  let copy: wref<inkCompoundWidget> = this.SpawnFromLocal(column, n"Root") as inkCompoundWidget;
+  if (!copy) {
+    EasyMSLog.Trace("settings: could not spawn Root for the mod list");
+    return NULL;
+  }
+  let box: wref<inkCompoundWidget> = copy.GetWidget(n"wrapper/wrapper/MainScrollingArea") as inkCompoundWidget;
+  if (!box) {
+    column.RemoveChild(copy);
+    EasyMSLog.Trace("settings: Root has no MainScrollingArea");
+    return NULL;
+  }
+  box.Reparent(column);
+  column.RemoveChild(copy);
+  let area: wref<inkWidget> = box.GetWidget(n"scroll_area");
+  let list: wref<inkCompoundWidget> = box.GetWidget(n"scroll_area/settings_option_list") as inkCompoundWidget;
+  let scroll: inkScrollController = box.GetController() as inkScrollController;
+  if (!area || !list || !scroll) {
+    column.RemoveChild(box);
+    EasyMSLog.Trace("settings: MainScrollingArea is missing parts");
+    return NULL;
+  }
+  list.RemoveAllChildren();
+  let mask: wref<inkWidget> = box.GetWidget(n"inkMaskWidget5");
+  if (mask) {
+    box.RemoveChild(mask);
+  }
+  let pad: Float = EasyMSScreen.ListPad();
+  let width: Float = EasyMSScreen.ListWidth();
+  let height: Float = EasyMSScreen.ListHeight();
+  let barSpace: Float = EasyMSScreen.ListBarSpace();
+  box.SetHAlign(inkEHorizontalAlign.Left);
+  box.SetVAlign(inkEVerticalAlign.Top);
+  area.SetHAlign(inkEHorizontalAlign.Left);
+  area.SetVAlign(inkEVerticalAlign.Top);
+  area.SetMargin(pad, pad, barSpace, pad);
+  area.SetSize(width, height);
+  scroll.SetViewportWidth(width);
+  scroll.SetViewportHeight(height);
+  scroll.SetScrollPosition(0.0);
+  let bar: wref<inkWidget> = box.GetWidget(n"slider");
+  if (bar) {
+    bar.SetHAlign(inkEHorizontalAlign.Right);
+    bar.SetVAlign(inkEVerticalAlign.Fill);
+    bar.SetMargin(0.0, pad, barSpace / 2.0 - 50.0, pad);
+    bar.SetSize(100.0, height);
+  }
+  this.EasyMSFrameLine(box, inkEHorizontalAlign.Fill, inkEVerticalAlign.Top, 4.0, 3.0);
+  this.EasyMSFrameLine(box, inkEHorizontalAlign.Fill, inkEVerticalAlign.Bottom, 4.0, 3.0);
+  this.EasyMSFrameLine(box, inkEHorizontalAlign.Left, inkEVerticalAlign.Fill, 3.0, 4.0);
+  this.EasyMSFrameLine(box, inkEHorizontalAlign.Right, inkEVerticalAlign.Fill, 3.0, 4.0);
+  screen.SetCardScroll(scroll);
+  EasyMSLog.Trace("settings: mod list scroll box ready");
+  return list;
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSFrameLine(box: wref<inkCompoundWidget>, h: inkEHorizontalAlign, v: inkEVerticalAlign, width: Float, height: Float) -> Void {
+  let line: inkRectangle = new inkRectangle;
+  line.SetName(n"EasyMSFrame");
+  line.SetHAlign(h);
+  line.SetVAlign(v);
+  line.SetSize(width, height);
+  line.SetInteractive(false);
+  line.SetOpacity(0.4);
+  box.AddChildWidget(line);
+  line.BindProperty(n"tintColor", n"MainColors.Red");
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSWheelTo(modList: Bool) -> Void {
+  let screen: EasyMSScreen = this.EasyMSScreen();
+  let options: inkScrollController = inkWidgetRef.GetController(this.m_scrollPanel) as inkScrollController;
+  if (options) {
+    options.SetInputDisabled(modList);
+  }
+  let mods: inkScrollController = screen.CardScroller();
+  if (mods) {
+    mods.SetInputDisabled(!modList);
+  }
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSShowMod(index: Int32) -> Void {
+  let screen: EasyMSScreen = this.EasyMSScreen();
+  if (!screen) {
+    return;
+  }
+  screen.SetMod(index);
+  screen.PaintCards();
+  screen.ShowSelectedCard();
+  this.EasyMSTabs();
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSStepMod(dir: Int32) -> Void {
+  let screen: EasyMSScreen = this.EasyMSScreen();
+  if (!screen || screen.ModCount() <= 1) {
+    return;
+  }
+  let next: Int32 = screen.ModIndex() + dir;
+  if (next < 0) {
+    next = screen.ModCount() - 1;
+  }
+  if (next >= screen.ModCount()) {
+    next = 0;
+  }
+  this.PlaySound(n"Button", n"OnPress");
+  this.EasyMSShowMod(next);
+}

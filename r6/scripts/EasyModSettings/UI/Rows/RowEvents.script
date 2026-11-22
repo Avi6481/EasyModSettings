@@ -1,0 +1,62 @@
+@wrapMethod(SettingsSelectorController)
+event OnLeft(e: inkPointerEvent) {
+  if (this.m_SettingsEntry) {
+    OnLeft(e);
+  }
+}
+
+@wrapMethod(SettingsSelectorController)
+event OnRight(e: inkPointerEvent) {
+  if (this.m_SettingsEntry) {
+    OnRight(e);
+  }
+}
+
+@wrapMethod(SettingsSelectorController)
+event OnShortcutPress(e: inkPointerEvent) {
+  if (this.m_SettingsEntry) {
+    OnShortcutPress(e);
+  }
+}
+
+@wrapMethod(SettingsSelectorController)
+event OnShortcutRepeat(e: inkPointerEvent) {
+  if (this.m_SettingsEntry) {
+    OnShortcutRepeat(e);
+  }
+}
+
+@wrapMethod(SettingsSelectorController)
+event OnHoverOver(e: inkPointerEvent) {
+  if (this.m_SettingsEntry) {
+    OnHoverOver(e);
+    return;
+  }
+  this.EasyMSHover(true, e.GetCurrentTarget());
+}
+
+@wrapMethod(SettingsSelectorController)
+event OnHoverOut(e: inkPointerEvent) {
+  if (this.m_SettingsEntry) {
+    OnHoverOut(e);
+    return;
+  }
+  this.EasyMSHover(false, e.GetCurrentTarget());
+}
+
+@wrapMethod(SettingsSelectorControllerButton)
+event OnButtonRelease(e: inkPointerEvent) {
+  if (this.m_SettingsEntry) {
+    OnButtonRelease(e);
+  }
+}
+
+@wrapMethod(SettingsSelectorControllerFloat)
+event OnSliderValueChanged(sliderController: wref<inkSliderController>, progress: Float, value: Float) {
+  if (this.m_SettingsEntry) {
+    OnSliderValueChanged(sliderController, progress, value);
+    return;
+  }
+  this.m_newValue = value;
+  inkTextRef.SetText(this.m_ValueText, EasyMSOption.Number(value, this.EasyMSDecimals(), this.EasyMSUnit()));
+}

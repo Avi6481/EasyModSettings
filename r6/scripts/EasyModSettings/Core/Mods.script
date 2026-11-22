@@ -1,0 +1,5 @@
+public class EasyMSMods {
+  public static function Register(system: EasyMSSystem) -> Void {
+    system.Register(new EasyMSDebug);
+  }
+}

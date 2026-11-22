@@ -1,0 +1,168 @@
+@wrapMethod(SettingsMainGameController)
+event OnPressReplayTutorial(evt: inkPointerEvent) {
+  if (!this.EasyMSIsMods()) {
+    OnPressReplayTutorial(evt);
+    return;
+  }
+  this.EasyMSInput(evt);
+}
+
+@wrapMethod(SettingsMainGameController)
+event OnSettingHoverOver(evt: inkPointerEvent) {
+  if (!this.EasyMSIsMods()) {
+    OnSettingHoverOver(evt);
+    return;
+  }
+  let screen: EasyMSScreen = this.EasyMSScreen();
+  let target: wref<inkWidget> = evt.GetCurrentTarget();
+  if (screen.CardMod(target) >= 0) {
+    this.EasyMSWheelTo(true);
+    return;
+  }
+  this.EasyMSWheelTo(false);
+  let binding: EasyMSBinding = screen.FindRoot(target);
+  if (binding) {
+    this.EasyMSDescribe(screen, binding.option);
+  }
+}
+
+@wrapMethod(SettingsMainGameController)
+event OnSettingHoverOut(evt: inkPointerEvent) {
+  if (!this.EasyMSIsMods()) {
+    OnSettingHoverOut(evt);
+    return;
+  }
+  this.EasyMSScreen().CommitSliders();
+  inkTextRef.SetVisible(this.m_descriptionText, false);
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSWire(row: SettingsSelectorController, binding: EasyMSBinding) -> Void {
+  let kind: Int32 = binding.option.kind;
+  row.RegisterToCallback(n"OnHoverOver", this, n"OnSettingHoverOver");
+  row.RegisterToCallback(n"OnHoverOut", this, n"OnSettingHoverOut");
+  row.RegisterToCallback(n"OnRelease", this, n"OnPressReplayTutorial");
+  if (kind == EasyMSKind.Toggle()) {
+    let toggle: SettingsSelectorControllerBool = row as SettingsSelectorControllerBool;
+    if (toggle) {
+      binding.left = toggle.EasyMSOffBody();
+      binding.right = toggle.EasyMSOnBody();
+    }
+  } else {
+    if (kind == EasyMSKind.Slider() || kind == EasyMSKind.Choice()) {
+      let range: SettingsSelectorControllerRange = row as SettingsSelectorControllerRange;
+      if (range) {
+        binding.left = range.EasyMSLeftArrow();
+        binding.right = range.EasyMSRightArrow();
+      }
+      row.RegisterToCallback(n"OnRepeat", this, n"OnPressReplayTutorial");
+    } else {
+      let button: SettingsSelectorControllerButton = row as SettingsSelectorControllerButton;
+      if (button) {
+        binding.button = button.EasyMSButtonBody();
+      }
+    }
+  }
+  this.EasyMSListen(binding.left);
+  this.EasyMSListen(binding.right);
+  this.EasyMSListen(binding.button);
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSListen(widget: wref<inkWidget>) -> Void {
+  if (widget) {
+    widget.RegisterToCallback(n"OnRelease", this, n"OnPressReplayTutorial");
+  }
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSInput(evt: inkPointerEvent) -> Void {
+  let screen: EasyMSScreen = this.EasyMSScreen();
+  if (!screen || this.m_interactionsBlocked) {
+    return;
+  }
+  let target: wref<inkWidget> = evt.GetCurrentTarget();
+  let click: Bool = evt.IsAction(n"click") || evt.IsAction(n"tap");
+  let card: Int32 = screen.CardMod(target);
+  if (card >= 0) {
+    if (click) {
+      EasyMSLog.Trace("input: mod card " + IntToString(card));
+      if (card != screen.ModIndex()) {
+        this.PlaySound(n"Button", n"OnPress");
+        this.EasyMSShowMod(card);
+      }
+    }
+    return;
+  }
+  let binding: EasyMSBinding = screen.FindWidget(target);
+  if (!binding) {
+    return;
+  }
+  screen.CommitSliders();
+  if (evt.IsHandled()) {
+    return;
+  }
+  let option: EasyMSOption = binding.option;
+  let kind: Int32 = option.kind;
+  let next: Bool = evt.IsAction(n"option_switch_next_settings");
+  if (next || evt.IsAction(n"option_switch_prev_settings")) {
+    evt.Handle();
+    this.EasyMSStep(screen, binding, next);
+    return;
+  }
+  if (!click) {
+    return;
+  }
+  if (kind == EasyMSKind.Toggle()) {
+    evt.Handle();
+    this.EasyMSStep(screen, binding, !option.on);
+    return;
+  }
+  if (kind == EasyMSKind.Slider() || kind == EasyMSKind.Choice()) {
+    if (target == binding.left || target == binding.right) {
+      evt.Handle();
+      this.EasyMSStep(screen, binding, target == binding.right);
+      return;
+    }
+    if (kind == EasyMSKind.Choice()) {
+      evt.Handle();
+      this.EasyMSStep(screen, binding, true);
+    }
+    return;
+  }
+  if (kind == EasyMSKind.Note()) {
+    return;
+  }
+  evt.Handle();
+  this.PlaySound(n"Button", n"OnPress");
+  EasyMSLog.Trace("input: pressed '" + option.label + "'");
+  if (EasyMSRowView.Press(screen, binding) == 3) {
+    this.EasyMSGoSection(screen.SectionOf(option.page));
+  }
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSStep(screen: EasyMSScreen, binding: EasyMSBinding, forward: Bool) -> Void {
+  if (!EasyMSRowView.Step(screen, binding, forward)) {
+    return;
+  }
+  EasyMSLog.Trace("input: '" + binding.option.label + "' = " + screen.Value(binding.option));
+  if (forward) {
+    this.PlaySound(n"ButtonValueUp", n"OnPress");
+  } else {
+    this.PlaySound(n"ButtonValueDown", n"OnPress");
+  }
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSDescribe(screen: EasyMSScreen, option: EasyMSOption) -> Void {
+  let text: String = option.tip;
+  if (option.kind == EasyMSKind.Confirm()) {
+    text = text + "\n\nPress twice to confirm.";
+  }
+  if (!screen.IsActive(option) && option.dependsOn != n"None") {
+    text = text + "\n\nTurn on the option it depends on first.";
+  }
+  inkTextRef.SetText(this.m_descriptionText, text);
+  inkTextRef.SetVisible(this.m_descriptionText, StrLen(text) > 0);
+}

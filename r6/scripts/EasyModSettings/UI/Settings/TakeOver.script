@@ -1,0 +1,133 @@
+@wrapMethod(SettingsMainGameController)
+event OnInitialize() {
+  let system: EasyMSSystem = EasyMSSystem.ForController(this);
+  let mods: Bool = false;
+  if (system && system.TakeModsRequest()) {
+    mods = true;
+    EasyMSLog.Trace("settings: opening in mods mode");
+    system.Screen().Begin(this);
+  }
+  OnInitialize();
+  if (mods && this.EasyMSIsMods()) {
+    this.EasyMSTakeOver();
+  }
+}
+
+@wrapMethod(SettingsMainGameController)
+event OnUninitialize() {
+  if (this.EasyMSIsMods()) {
+    this.EasyMSScreen().CommitSliders();
+    this.EasyMSScreen().End();
+  }
+  OnUninitialize();
+}
+
+@wrapMethod(SettingsMainGameController)
+event OnBack(userData: IScriptable) {
+  if (!this.EasyMSIsMods()) {
+    OnBack(userData);
+    return;
+  }
+  EasyMSLog.Trace("settings: back, closing");
+  this.EasyMSScreen().CommitSliders();
+  this.EasyMSScreen().End();
+  this.RequestClose();
+}
+
+@wrapMethod(SettingsMainGameController)
+event OnMenuChanged(index: Int32, target: ListItemController) {
+  if (!this.EasyMSIsMods()) {
+    OnMenuChanged(index, target);
+    return;
+  }
+  if (this.m_interactionsBlocked || index == this.EasyMSScreen().SectionIndex()) {
+    return;
+  }
+  this.PlaySound(n"Button", n"OnPress");
+  this.EasyMSScreen().SetSection(index);
+  this.EasyMSPopulate();
+  this.ForceResetCursorType();
+}
+
+@wrapMethod(SettingsMainGameController)
+function PopulateCategorySettingsOptions(idx: Int32) -> Void {
+  if (this.EasyMSIsMods()) {
+    this.EasyMSPopulate();
+    return;
+  }
+  PopulateCategorySettingsOptions(idx);
+}
+
+@wrapMethod(SettingsMainGameController)
+function RequestRestoreDefaults() -> Void {
+  if (this.EasyMSIsMods()) {
+    EasyMSLog.Trace("settings: restore defaults");
+    this.PlaySound(n"Button", n"OnPress");
+    this.EasyMSScreen().ResetMod();
+    this.EasyMSScreen().RefreshAll();
+    return;
+  }
+  RequestRestoreDefaults();
+}
+
+@wrapMethod(SettingsMainGameController)
+event OnButtonRelease(evt: inkPointerEvent) {
+  if (!this.EasyMSIsMods()) {
+    OnButtonRelease(evt);
+    return;
+  }
+  if (evt.IsAction(n"thumb_press_left")) {
+    this.EasyMSStepMod(-1);
+    return;
+  }
+  if (evt.IsAction(n"thumb_press_right")) {
+    this.EasyMSStepMod(1);
+    return;
+  }
+  if (evt.IsAction(n"prior_menu") || evt.IsAction(n"next_menu") || evt.IsAction(n"restore_default_settings")) {
+    OnButtonRelease(evt);
+  }
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSScreen() -> EasyMSScreen {
+  let system: EasyMSSystem = EasyMSSystem.ForController(this);
+  if (!system) {
+    return NULL;
+  }
+  return system.Screen();
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSIsMods() -> Bool {
+  let screen: EasyMSScreen = this.EasyMSScreen();
+  if (!screen) {
+    return false;
+  }
+  return screen.IsMods(this);
+}
+
+@addMethod(SettingsMainGameController)
+function EasyMSTakeOver() -> Void {
+  inkWidgetRef.SetVisible(this.m_applyButton, false);
+  inkWidgetRef.SetVisible(this.m_resetButton, false);
+  inkWidgetRef.SetVisible(this.m_brightnessButton, false);
+  inkWidgetRef.SetVisible(this.m_hdrButton, false);
+  inkWidgetRef.SetVisible(this.m_controllerButton, false);
+  inkWidgetRef.SetVisible(this.m_safezonesButton, false);
+  inkWidgetRef.SetVisible(this.m_replayTutorialButton, false);
+  inkWidgetRef.SetVisible(this.m_benchmarkButton, false);
+  inkWidgetRef.SetVisible(this.m_languageDisclaimer, false);
+  inkWidgetRef.SetVisible(this.m_controlsStyleContainer, false);
+  if (this.m_languageInstallProgressBar) {
+    this.m_languageInstallProgressBar.SetEnabled(false);
+  }
+  if (this.m_buttonHintsController) {
+    this.m_buttonHintsController.AddButtonHint(n"thumb_press_right", "Next Mod");
+    this.m_buttonHintsController.AddButtonHint(n"thumb_press_left", "Previous Mod");
+  }
+  let screen: EasyMSScreen = this.EasyMSScreen();
+  EasyMSLog.Trace("settings: " + IntToString(screen.ModCount()) + " mods");
+  this.EasyMSBuildModList();
+  this.EasyMSShowMod(screen.ModIndex());
+}

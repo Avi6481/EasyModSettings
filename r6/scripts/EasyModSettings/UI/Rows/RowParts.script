@@ -1,0 +1,126 @@
+@addMethod(SettingsSelectorController)
+function EasyMSSetLabel(text: String) -> Void {
+  inkTextRef.SetText(this.m_LabelText, text);
+  inkTextRef.SetVisible(this.m_ModifiedFlag, false);
+}
+
+@addMethod(SettingsSelectorController)
+function EasyMSHover(over: Bool, target: wref<inkWidget>) -> Void {
+  if (over) {
+    if (this.m_hoveredChildren.Size() <= 0) {
+      this.PlayLibraryAnimation(n"hover_over_anim");
+      inkTextRef.SetState(this.m_LabelText, n"Hover");
+      inkWidgetRef.SetVisible(this.m_optionSwitchHint, true);
+      inkWidgetRef.SetVisible(this.m_hoverGeneralHighlight, true);
+    }
+    this.m_hoveredChildren.PushBack(target);
+    return;
+  }
+  this.m_hoveredChildren.Remove(target);
+  if (this.m_hoveredChildren.Size() <= 0) {
+    this.PlayLibraryAnimation(n"hover_out_anim");
+    inkTextRef.SetState(this.m_LabelText, n"Default");
+    inkWidgetRef.SetVisible(this.m_optionSwitchHint, false);
+    inkWidgetRef.SetVisible(this.m_hoverGeneralHighlight, false);
+  }
+}
+
+@addMethod(SettingsSelectorControllerBool)
+function EasyMSShow(on: Bool) -> Void {
+  inkWidgetRef.SetVisible(this.m_onState, on);
+  inkWidgetRef.SetVisible(this.m_offState, !on);
+}
+
+@addMethod(SettingsSelectorControllerBool)
+function EasyMSOffBody() -> wref<inkWidget> {
+  return inkWidgetRef.Get(this.m_offStateBody);
+}
+
+@addMethod(SettingsSelectorControllerBool)
+function EasyMSOnBody() -> wref<inkWidget> {
+  return inkWidgetRef.Get(this.m_onStateBody);
+}
+
+@addMethod(SettingsSelectorControllerRange)
+function EasyMSLeftArrow() -> wref<inkWidget> {
+  return inkWidgetRef.Get(this.m_LeftArrow);
+}
+
+@addMethod(SettingsSelectorControllerRange)
+function EasyMSRightArrow() -> wref<inkWidget> {
+  return inkWidgetRef.Get(this.m_RightArrow);
+}
+
+@addMethod(SettingsSelectorControllerFloat)
+function EasyMSSetup(minValue: Float, maxValue: Float, value: Float, step: Float, decimals: Int32, unit: String) -> Void {
+  this.m_newValue = value;
+  this.SetAdditionalText(StringToName(IntToString(decimals) + "|" + unit));
+  this.m_sliderController = inkWidgetRef.GetControllerByType(this.m_sliderWidget, n"inkSliderController") as inkSliderController;
+  if (this.m_sliderController) {
+    this.m_sliderController.Setup(minValue, maxValue, value, step);
+    this.m_sliderController.RegisterToCallback(n"OnSliderValueChanged", this, n"OnSliderValueChanged");
+  }
+}
+
+@addMethod(SettingsSelectorControllerFloat)
+function EasyMSShow(value: Float, text: String) -> Void {
+  this.m_newValue = value;
+  inkTextRef.SetText(this.m_ValueText, text);
+  if (this.m_sliderController) {
+    this.m_sliderController.ChangeValue(value);
+  }
+}
+
+@addMethod(SettingsSelectorControllerFloat)
+function EasyMSValue() -> Float {
+  return this.m_newValue;
+}
+
+@addMethod(SettingsSelectorControllerFloat)
+function EasyMSEnable(enabled: Bool) -> Void {
+  if (this.m_sliderController) {
+    this.m_sliderController.SetInputDisabled(!enabled);
+  }
+}
+
+@addMethod(SettingsSelectorControllerFloat)
+function EasyMSDecimals() -> Int32 {
+  return StringToInt(StrBeforeFirst(NameToString(this.m_additionalText), "|"));
+}
+
+@addMethod(SettingsSelectorControllerFloat)
+function EasyMSUnit() -> String {
+  return StrAfterFirst(NameToString(this.m_additionalText), "|");
+}
+
+@addMethod(SettingsSelectorControllerListString)
+function EasyMSSetup(count: Int32) -> Void {
+  this.PopulateDots(count);
+}
+
+@addMethod(SettingsSelectorControllerListString)
+function EasyMSShow(index: Int32, text: String) -> Void {
+  inkTextRef.SetText(this.m_ValueText, text);
+  this.SelectDot(index);
+}
+
+@addMethod(SettingsSelectorControllerButton)
+function EasyMSShow(text: String, showButton: Bool) -> Void {
+  inkTextRef.SetText(this.m_buttonText, text);
+  inkWidgetRef.SetVisible(this.m_buttonBody, showButton);
+}
+
+@addMethod(SettingsSelectorControllerButton)
+function EasyMSButtonBody() -> wref<inkWidget> {
+  return inkWidgetRef.Get(this.m_buttonBody);
+}
+
+@addMethod(SettingsCategoryController)
+function EasyMSSetLabel(text: String) -> Void {
+  inkTextRef.SetText(this.m_label, text);
+}
+
+@addMethod(SettingsCategoryItem)
+function EasyMSSetLabel(text: String) -> Void {
+  inkTextRef.SetText(this.m_labelHighlight, text);
+}

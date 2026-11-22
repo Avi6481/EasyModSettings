@@ -1,0 +1,10 @@
+r6/cache/
+REDmodLog.txt
+_old*/
+_publish/
+launch-test.bat
+modioErrorLog.json
+build.bat
+publish.bat
+validate-consoles.bat
+about.json

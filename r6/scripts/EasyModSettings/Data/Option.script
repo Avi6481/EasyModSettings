@@ -1,0 +1,147 @@
+public class EasyMSKind {
+  public static function Header() -> Int32 { return 0; }
+  public static function Toggle() -> Int32 { return 1; }
+  public static function Slider() -> Int32 { return 2; }
+  public static function Choice() -> Int32 { return 3; }
+  public static function Button() -> Int32 { return 4; }
+  public static function Confirm() -> Int32 { return 5; }
+  public static function Submenu() -> Int32 { return 6; }
+  public static function Info() -> Int32 { return 7; }
+  public static function Note() -> Int32 { return 8; }
+}
+
+public class EasyMSOption {
+  public let kind: Int32;
+  public let id: CName;
+  public let label: String;
+  public let tip: String;
+
+  public let on: Bool;
+  public let defOn: Bool;
+
+  public let value: Float;
+  public let defValue: Float;
+  public let minValue: Float;
+  public let maxValue: Float;
+  public let step: Float;
+  public let decimals: Int32;
+  public let unit: String;
+
+  public let choices: array<String>;
+  public let choice: Int32;
+  public let defChoice: Int32;
+
+  public let sideText: String;
+  public let armed: Bool;
+  public let resetsMod: Bool;
+
+  public let remote: Bool;
+  public let pageKey: String;
+
+  public let page: EasyMSPage;
+
+  public let disabled: Bool;
+  public let dependsOn: CName;
+  public let mod: wref<EasyMSMod>;
+
+  public function IsSelectable() -> Bool {
+    if (this.disabled) {
+      return false;
+    }
+    return this.kind != EasyMSKind.Header() && this.kind != EasyMSKind.Note();
+  }
+
+  public function IsStored() -> Bool {
+    return this.kind == EasyMSKind.Toggle() || this.kind == EasyMSKind.Slider() || this.kind == EasyMSKind.Choice();
+  }
+
+  public function IsAdjustable() -> Bool {
+    return this.kind == EasyMSKind.Toggle() || this.kind == EasyMSKind.Slider() || this.kind == EasyMSKind.Choice();
+  }
+
+  public function ResetValue() -> Void {
+    this.on = this.defOn;
+    this.value = this.defValue;
+    this.choice = this.defChoice;
+  }
+
+  public function IsDefault() -> Bool {
+    if (this.kind == EasyMSKind.Toggle()) {
+      return this.on == this.defOn;
+    }
+    if (this.kind == EasyMSKind.Slider()) {
+      return AbsF(this.value - this.defValue) < 0.0001;
+    }
+    if (this.kind == EasyMSKind.Choice()) {
+      return this.choice == this.defChoice;
+    }
+    return true;
+  }
+
+  public function ValueText() -> String {
+    if (this.kind == EasyMSKind.Choice()) {
+      if (this.choice >= 0 && this.choice < this.choices.Size()) {
+        return this.choices[this.choice];
+      }
+      return "";
+    }
+    if (this.kind == EasyMSKind.Toggle()) {
+      if (this.on) {
+        return "On";
+      }
+      return "Off";
+    }
+    if (this.kind != EasyMSKind.Slider()) {
+      return this.sideText;
+    }
+    return EasyMSOption.Number(this.value, this.decimals, this.unit);
+  }
+
+  public static function Number(value: Float, decimals: Int32, unit: String) -> String {
+    if (decimals <= 0) {
+      return IntToString(RoundF(value)) + unit;
+    }
+    return FloatToStringPrec(value, decimals) + unit;
+  }
+
+  public function Fraction() -> Float {
+    let range: Float = this.maxValue - this.minValue;
+    if (range <= 0.0) {
+      return 0.0;
+    }
+    return ClampF((this.value - this.minValue) / range, 0.0, 1.0);
+  }
+
+  public function Nudge(steps: Int32) -> Bool {
+    if (this.kind == EasyMSKind.Toggle()) {
+      let wantOn: Bool = steps > 0;
+      if (wantOn == this.on) {
+        return false;
+      }
+      this.on = wantOn;
+      return true;
+    }
+    if (this.kind == EasyMSKind.Slider()) {
+      let stepsF: Float = Cast<Float>(steps);
+      let target: Float = ClampF(this.value + this.step * stepsF, this.minValue, this.maxValue);
+      if (AbsF(target - this.value) < 0.0001) {
+        return false;
+      }
+      this.value = target;
+      return true;
+    }
+    if (this.kind == EasyMSKind.Choice()) {
+      let count: Int32 = this.choices.Size();
+      if (count <= 1) {
+        return false;
+      }
+      let next: Int32 = (this.choice + steps) % count;
+      if (next < 0) {
+        next += count;
+      }
+      this.choice = next;
+      return true;
+    }
+    return false;
+  }
+}

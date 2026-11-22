@@ -1,0 +1,246 @@
+public class MyModSettingsLink extends GenericNotificationBaseAction {
+  public let m_next: GenericNotificationBaseAction;
+  public let m_game: GameInstance;
+
+  public override function Execute(data: IScriptable) -> Bool {
+    let msg: ListItemData = data as ListItemData;
+    if (msg) {
+      let request: String = MyModSettings.Request(msg.label);
+      if (StrBeginsWith(request, "EASYMS1|")) {
+        msg.label = msg.label + MyModSettings.Answer(this.m_game, request);
+      }
+    }
+    if (this.m_next) {
+      return this.m_next.Execute(data);
+    }
+    return true;
+  }
+}
+
+public class MyModSettingsRetry extends DelayCallback {
+  public let m_system: wref<MyModSettingsSystem>;
+
+  public override function Call() -> Void {
+    if (this.m_system) {
+      this.m_system.Join();
+    }
+  }
+}
+
+public class MyModSettingsSystem extends ScriptableSystem {
+  private let m_link: MyModSettingsLink;
+  private let m_game: GameInstance;
+  private let m_tries: Int32;
+
+  private final function OnPlayerAttach(request: PlayerAttachRequest) -> Void {
+    let player: wref<GameObject> = request.owner;
+    if (!player) {
+      return;
+    }
+    this.m_game = player.GetGame();
+    this.m_tries = 0;
+    this.Join();
+  }
+
+  public function Join() -> Void {
+    this.m_link = MyModSettings.Register(this.m_game, this.m_link);
+    if (MyModSettings.Joined(this.m_game) || this.m_tries >= 30) {
+      return;
+    }
+    this.m_tries += 1;
+    let retry: MyModSettingsRetry = new MyModSettingsRetry;
+    retry.m_system = this;
+    GameInstance.GetDelaySystem(this.m_game).DelayCallback(retry, 2.0, false);
+  }
+}
+
+public class MyModSettings {
+  public static function Spec() -> String {
+    let s: String = "mod|mymod|My Mod|1.0.0|by you|What My Mod does, in one line.\n";
+    s = s + "header|General\n";
+    s = s + "toggle|mymod.enabled|Enabled|Turns My Mod on or off.|1|-\n";
+    s = s + "slider|mymod.strength|Strength|How strong it is.|0|100|5|50|0|%|mymod.enabled\n";
+    s = s + "choice|mymod.mode|Mode|Pick one.|Calm;Normal;Wild|1|mymod.enabled\n";
+    s = s + "header|Extras\n";
+    s = s + "button|mymod.hello|Say Hello|Counts up the number below.|HELLO|-\n";
+    s = s + "info|mymod.hellos|Hellos|How many times you pressed Say Hello.\n";
+    s = s + "reset|mymod.reset|Reset to Defaults|Puts every option back to its default.\n";
+    return s;
+  }
+
+  public static function Default(id: String) -> Float {
+    if (StrCmp(id, "mymod.enabled") == 0) {
+      return 1.0;
+    }
+    if (StrCmp(id, "mymod.strength") == 0) {
+      return 50.0;
+    }
+    if (StrCmp(id, "mymod.mode") == 0) {
+      return 1.0;
+    }
+    return 0.0;
+  }
+
+  public static function IsToggle(id: String) -> Bool {
+    return StrCmp(id, "mymod.enabled") == 0;
+  }
+
+  public static function IsChoice(id: String) -> Bool {
+    return StrCmp(id, "mymod.mode") == 0;
+  }
+
+  public static function Ids() -> array<String> {
+    let ids: array<String>;
+    ids.PushBack("mymod.enabled");
+    ids.PushBack("mymod.strength");
+    ids.PushBack("mymod.mode");
+    return ids;
+  }
+
+  public static function Run(game: GameInstance, id: String) -> Void {
+    if (StrCmp(id, "mymod.hello") == 0) {
+      MyModSettings.Set(game, "mymod.hellos", MyModSettings.Get(game, "mymod.hellos") + 1.0);
+      return;
+    }
+    if (StrCmp(id, "mymod.reset") == 0) {
+      let ids: array<String> = MyModSettings.Ids();
+      let i: Int32 = 0;
+      while (i < ids.Size()) {
+        MyModSettings.Set(game, ids[i], MyModSettings.Default(ids[i]));
+        i += 1;
+      }
+    }
+  }
+
+  public static function Info(game: GameInstance, id: String) -> String {
+    if (StrCmp(id, "mymod.hellos") == 0) {
+      return IntToString(RoundF(MyModSettings.Get(game, "mymod.hellos")));
+    }
+    return "";
+  }
+
+  public static function Enabled(game: GameInstance) -> Bool {
+    return MyModSettings.Get(game, "mymod.enabled") > 0.5;
+  }
+
+  public static function Key(id: String) -> String {
+    return StrReplaceAll(id, ".", "_");
+  }
+
+  public static function Get(game: GameInstance, id: String) -> Float {
+    let quests: QuestsSystem = GameInstance.GetQuestsSystem(game);
+    if (!quests) {
+      return MyModSettings.Default(id);
+    }
+    let stored: Int32 = quests.GetFactStr(MyModSettings.Key(id));
+    if (stored <= 0) {
+      return MyModSettings.Default(id);
+    }
+    let raw: Int32 = stored - 1;
+    return Cast<Float>(raw) / 100.0;
+  }
+
+  public static function Set(game: GameInstance, id: String, value: Float) -> Void {
+    let quests: QuestsSystem = GameInstance.GetQuestsSystem(game);
+    if (!quests) {
+      return;
+    }
+    quests.SetFactStr(MyModSettings.Key(id), RoundF(value * 100.0) + 1);
+  }
+
+  public static function Slot() -> BlackboardID_Variant {
+    return GetAllBlackboardDefs().UIGameData.UIjailbreakData;
+  }
+
+  public static function Register(game: GameInstance, link: MyModSettingsLink) -> MyModSettingsLink {
+    let board: IBlackboard = GameInstance.GetBlackboardSystem(game).Get(GetAllBlackboardDefs().UIGameData);
+    if (!board) {
+      return link;
+    }
+    let head: GenericNotificationBaseAction = board.GetVariant(MyModSettings.Slot()) as GenericNotificationBaseAction;
+    if (head) {
+      if (MyModSettings.Answers(head)) {
+        return link;
+      }
+    }
+    let mine: MyModSettingsLink = link;
+    if (!mine) {
+      mine = new MyModSettingsLink;
+    }
+    mine.m_next = head;
+    mine.m_game = game;
+    let stored: GenericNotificationBaseAction = mine;
+    board.SetVariant(MyModSettings.Slot(), stored);
+    return mine;
+  }
+
+  public static function Joined(game: GameInstance) -> Bool {
+    let board: IBlackboard = GameInstance.GetBlackboardSystem(game).Get(GetAllBlackboardDefs().UIGameData);
+    if (!board) {
+      return false;
+    }
+    let head: GenericNotificationBaseAction = board.GetVariant(MyModSettings.Slot()) as GenericNotificationBaseAction;
+    if (!head) {
+      return false;
+    }
+    return MyModSettings.Answers(head);
+  }
+
+  private static function Answers(head: GenericNotificationBaseAction) -> Bool {
+    let probe: ListItemData = new ListItemData;
+    probe.label = "EASYMS1|ping";
+    let handled: Bool = head.Execute(probe);
+    return handled && StrFindFirst(probe.label, "\n##mymod") >= 0;
+  }
+
+  public static function Request(label: String) -> String {
+    let cut: Int32 = StrFindFirst(label, "\n");
+    if (cut < 0) {
+      return label;
+    }
+    return StrLeft(label, cut);
+  }
+
+  public static function Answer(game: GameInstance, message: String) -> String {
+    let parts: array<String> = StrSplit(message, "|");
+    if (parts.Size() < 2) {
+      return "";
+    }
+    let command: String = parts[1];
+    if (StrCmp(command, "ping") == 0) {
+      return "\n##mymod";
+    }
+    if (StrCmp(command, "list") == 0) {
+      return "\n" + MyModSettings.Spec();
+    }
+    if (parts.Size() < 3 ||!StrBeginsWith(parts[2], "mymod.")) {
+      return "";
+    }
+    let id: String = parts[2];
+    if (StrCmp(command, "get") == 0) {
+      let value: Float = MyModSettings.Get(game, id);
+      if (MyModSettings.IsToggle(id)) {
+        if (value > 0.5) {
+          return "\n@@1";
+        }
+        return "\n@@0";
+      }
+      if (MyModSettings.IsChoice(id)) {
+        return "\n@@" + IntToString(RoundF(value));
+      }
+      return "\n@@" + FloatToString(value);
+    }
+    if (StrCmp(command, "set") == 0 && parts.Size() >= 4) {
+      MyModSettings.Set(game, id, StringToFloat(parts[3], MyModSettings.Default(id)));
+      return "\n@@ok";
+    }
+    if (StrCmp(command, "action") == 0) {
+      MyModSettings.Run(game, id);
+      return "\n@@ok";
+    }
+    if (StrCmp(command, "info") == 0) {
+      return "\n@@" + MyModSettings.Info(game, id);
+    }
+    return "";
+  }
+}

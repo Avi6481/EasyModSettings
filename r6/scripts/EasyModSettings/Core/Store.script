@@ -1,0 +1,80 @@
+public class EasyMSStore {
+  public static function Prefix() -> String {
+    return "easyms_";
+  }
+
+  private static function Base() -> Int32 {
+    return 1000000000;
+  }
+
+  public static function Key(option: EasyMSOption) -> String {
+    let id: String = NameToString(option.id);
+    let key: String = "";
+    let i: Int32 = 0;
+    while (i < StrLen(id)) {
+      let c: String = StrMid(id, i, 1);
+      if (StrCmp(c, ".") == 0) {
+        key = key + "_";
+      } else {
+        key = key + c;
+      }
+      i += 1;
+    }
+    return EasyMSStore.Prefix() + key;
+  }
+
+  public static function Save(game: GameInstance, option: EasyMSOption) -> Void {
+    let quests: QuestsSystem = GameInstance.GetQuestsSystem(game);
+    if (!quests || !option || !option.IsStored()) {
+      return;
+    }
+    let key: String = EasyMSStore.Key(option);
+    if (option.kind == EasyMSKind.Toggle()) {
+      let state: Int32 = 1;
+      if (option.on) {
+        state = 2;
+      }
+      quests.SetFactStr(key, state);
+      return;
+    }
+    if (option.kind == EasyMSKind.Slider()) {
+      let scaled: Float = option.value * 100.0;
+      quests.SetFactStr(key, RoundF(scaled) + EasyMSStore.Base());
+      return;
+    }
+    quests.SetFactStr(key, option.choice + 1);
+  }
+
+  public static function Load(game: GameInstance, option: EasyMSOption) -> Void {
+    if (!option || !option.IsStored()) {
+      return;
+    }
+    option.ResetValue();
+    let quests: QuestsSystem = GameInstance.GetQuestsSystem(game);
+    if (!quests) {
+      return;
+    }
+    let stored: Int32 = quests.GetFactStr(EasyMSStore.Key(option));
+    if (stored <= 0) {
+      return;
+    }
+    if (option.kind == EasyMSKind.Toggle()) {
+      option.on = stored == 2;
+      return;
+    }
+    if (option.kind == EasyMSKind.Slider()) {
+      let raw: Int32 = stored - EasyMSStore.Base();
+      let value: Float = Cast<Float>(raw) / 100.0;
+      option.value = ClampF(value, option.minValue, option.maxValue);
+      return;
+    }
+    option.choice = Clamp(stored - 1, 0, Max(0, option.choices.Size() - 1));
+  }
+
+  public static function Forget(game: GameInstance, option: EasyMSOption) -> Void {
+    let quests: QuestsSystem = GameInstance.GetQuestsSystem(game);
+    if (quests && option && option.IsStored()) {
+      quests.SetFactStr(EasyMSStore.Key(option), 0);
+    }
+  }
+}

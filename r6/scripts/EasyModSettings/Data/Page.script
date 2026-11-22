@@ -1,0 +1,104 @@
+public class EasyMSPage {
+  public let title: String;
+  public let options: array<EasyMSOption>;
+  public let selected: Int32;
+  public let scroll: Int32;
+  public let mod: wref<EasyMSMod>;
+
+  private function Add(kind: Int32, optionId: CName, label: String, tip: String) -> EasyMSOption {
+    let option: EasyMSOption = new EasyMSOption;
+    option.kind = kind;
+    option.id = optionId;
+    option.label = label;
+    option.tip = tip;
+    option.mod = this.mod;
+    if (this.mod) {
+      option.remote = this.mod.remote;
+    }
+    this.options.PushBack(option);
+    return option;
+  }
+
+  public function Header(label: String) -> Void {
+    let option: EasyMSOption = this.Add(EasyMSKind.Header(), n"", label, "");
+    option.disabled = false;
+  }
+
+  public function Toggle(optionId: CName, label: String, tip: String, on: Bool) -> Void {
+    let option: EasyMSOption = this.Add(EasyMSKind.Toggle(), optionId, label, tip);
+    option.on = on;
+    option.defOn = on;
+  }
+
+  public function Slider(optionId: CName, label: String, tip: String, minValue: Float, maxValue: Float, step: Float, value: Float, decimals: Int32, unit: String) -> Void {
+    let option: EasyMSOption = this.Add(EasyMSKind.Slider(), optionId, label, tip);
+    option.minValue = minValue;
+    option.maxValue = maxValue;
+    option.step = step;
+    option.value = ClampF(value, minValue, maxValue);
+    option.defValue = option.value;
+    option.decimals = decimals;
+    option.unit = unit;
+  }
+
+  public function Choice(optionId: CName, label: String, tip: String, choices: String, choice: Int32) -> Void {
+    let option: EasyMSOption = this.Add(EasyMSKind.Choice(), optionId, label, tip);
+    option.choices = StrSplit(choices, "|");
+    option.choice = Clamp(choice, 0, Max(0, option.choices.Size() - 1));
+    option.defChoice = option.choice;
+  }
+
+  public function Button(optionId: CName, label: String, tip: String, sideText: String) -> Void {
+    let option: EasyMSOption = this.Add(EasyMSKind.Button(), optionId, label, tip);
+    option.sideText = sideText;
+  }
+
+  public function Confirm(optionId: CName, label: String, tip: String) -> Void {
+    let option: EasyMSOption = this.Add(EasyMSKind.Confirm(), optionId, label, tip);
+    option.sideText = "";
+  }
+
+  public function ResetAll(optionId: CName, label: String, tip: String) -> Void {
+    let option: EasyMSOption = this.Add(EasyMSKind.Confirm(), optionId, label, tip);
+    option.resetsMod = true;
+  }
+
+  public function Submenu(label: String, tip: String, target: EasyMSPage) -> Void {
+    let option: EasyMSOption = this.Add(EasyMSKind.Submenu(), n"", label, tip);
+    option.page = target;
+  }
+
+  public function Info(optionId: CName, label: String, tip: String) -> Void {
+    let option: EasyMSOption = this.Add(EasyMSKind.Info(), optionId, label, tip);
+    option.sideText = "";
+  }
+
+  public function Note(text: String) -> Void {
+    let option: EasyMSOption = this.Add(EasyMSKind.Note(), n"", text, "");
+    option.disabled = false;
+  }
+
+  public function DependsOn(toggleId: CName) -> Void {
+    if (this.options.Size() > 0) {
+      this.options[this.options.Size() - 1].dependsOn = toggleId;
+    }
+  }
+
+  public function SetPageKey(key: String) -> Void {
+    if (this.options.Size() > 0) {
+      this.options[this.options.Size() - 1].pageKey = key;
+    }
+  }
+
+  public function Disable() -> Void {
+    if (this.options.Size() > 0) {
+      this.options[this.options.Size() - 1].disabled = true;
+    }
+  }
+
+  public function Side(text: String) -> Void {
+    if (this.options.Size() > 0) {
+      this.options[this.options.Size() - 1].sideText = text;
+    }
+  }
+}

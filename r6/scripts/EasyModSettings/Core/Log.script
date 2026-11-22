@@ -1,0 +1,11 @@
+public class EasyMSLog {
+  public static function Enabled() -> Bool {
+    return true;
+  }
+
+  public static function Trace(text: String) -> Void {
+    if (EasyMSLog.Enabled()) {
+      ScriptLog("EasyMS: " + text);
+    }
+  }
+}

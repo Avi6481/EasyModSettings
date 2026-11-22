@@ -1,0 +1,165 @@
+public class EasyMSDebug extends EasyMSProvider {
+  private let m_presses: Int32;
+  private let m_confirms: Int32;
+  private let m_last: String;
+  private let m_selfTests: Int32;
+
+  public override function Build(mod: EasyMSMod) -> Void {
+    mod.Describe(n"easyms", "Debug", "EASYMS1", "", "Bridge tests, every widget kind, and a long list for scrolling.");
+    mod.root.title = "Bridge";
+    let widgets: EasyMSPage = mod.NewPage("Widgets");
+    let longList: EasyMSPage = mod.NewPage("Long List");
+    this.BuildBridge(mod.root, widgets);
+    this.BuildWidgets(widgets, longList);
+    this.BuildLongList(longList);
+  }
+
+  private function BuildBridge(page: EasyMSPage, widgets: EasyMSPage) -> Void {
+    page.Header("Bridge");
+    page.Info(n"easyms.dbg.mods", "Mods Found", "Mods that answered when Mod Settings opened.");
+    page.Info(n"easyms.dbg.lines", "Chain", "Links that answer a ping, newest first (each mod joins when a save loads and again every few seconds of play).");
+    page.Button(n"easyms.dbg.selftest", "Slot Self-Test", "Checks that values can be saved (store) and that the bridge's blackboard slot keeps a link the way mods add theirs (slot). Press it again later (after some play): it also says whether the last test link is still there.", "TEST");
+    page.Button(n"easyms.dbg.ping", "Ping Mods", "Asks the bridge again and reports which mods answered.", "PING");
+    page.Button(n"easyms.dbg.roundtrip", "Round Trip Test", "For every mod: reads its first toggle, flips it, reads it back, then puts it back.", "RUN");
+    page.Info(n"easyms.dbg.last", "Last Test", "Result of the last test button.");
+    page.Header("Counters");
+    page.Button(n"easyms.dbg.clear", "Clear Counters", "Sets the Widgets section's press counters back to 0.", "CLEAR");
+    page.Submenu("Widgets", "Every widget kind (switches to the Widgets tab).", widgets);
+  }
+
+  private function BuildWidgets(page: EasyMSPage, longList: EasyMSPage) -> Void {
+    page.Header("Toggle  (settingsSelectorBool)");
+    page.Toggle(n"easyms.demo.toggle", "Demo Toggle", "A toggle that starts on.", true);
+    page.Toggle(n"easyms.demo.off", "Starts Off", "A toggle that starts off.", false);
+    page.Header("Slider  (settingsSelectorFloat)");
+    page.Slider(n"easyms.demo.percent", "Whole Numbers", "0 to 100 in steps of 5.", 0.0, 100.0, 5.0, 50.0, 0, "%");
+    page.Slider(n"easyms.demo.scale", "Decimals", "0.5 to 3.0 in steps of 0.1.", 0.5, 3.0, 0.1, 1.0, 1, "x");
+    page.Slider(n"easyms.demo.seconds", "Seconds", "0 to 60 seconds.", 0.0, 60.0, 1.0, 10.0, 0, " s");
+    page.Header("Choice  (settingsSelectorStringList)");
+    page.Choice(n"easyms.demo.quality", "Quality", "Arrows, LT / RT or A / D cycle the values (wraps around).", "Low|Medium|High|Ultra", 1);
+    page.Header("Buttons  (settingsSelectorButton)");
+    page.Button(n"easyms.demo.button", "Button", "Runs an action. Counts presses below.", "PRESS");
+    page.Info(n"easyms.demo.presses", "Info", "Shows live text from the mod: here, how many times Button ran.");
+    page.Confirm(n"easyms.demo.confirm", "Confirm", "Press twice. Counts below.");
+    page.Info(n"easyms.demo.confirms", "Confirms", "How many times Confirm went through.");
+    page.Submenu("Section Link", "Switches to another section tab: here, Long List.", longList);
+    page.Header("Dependent Rows");
+    page.Toggle(n"easyms.demo.master", "Master Switch", "The two rows below dim while this is off.", true);
+    page.Slider(n"easyms.demo.child", "Only When On", "Depends on Master Switch.", 0.0, 10.0, 1.0, 5.0, 0, "");
+    page.DependsOn(n"easyms.demo.master");
+    page.Choice(n"easyms.demo.childchoice", "Also Only When On", "Depends on Master Switch.", "A|B|C", 0);
+    page.DependsOn(n"easyms.demo.master");
+    page.Header("Other States");
+    page.Button(n"easyms.demo.disabled", "Disabled Row", "Never usable.", "-");
+    page.Disable();
+    page.Note("A note: one line of plain text (a button row with no button).");
+    page.ResetAll(n"easyms.demo.reset", "Reset Widgets", "Puts every value in this section back to its default.");
+  }
+
+  private function BuildLongList(page: EasyMSPage) -> Void {
+    let i: Int32 = 1;
+    while (i <= 30) {
+      if (i == 1 || i == 11 || i == 21) {
+        page.Header("Rows " + IntToString(i) + " - " + IntToString(i + 9));
+      }
+      page.Toggle(StringToName("easyms.demo.row" + IntToString(i)), "Row " + IntToString(i), "Scroll test row " + IntToString(i) + ".", i % 3 == 0);
+      i += 1;
+    }
+  }
+
+  public override function OnAction(system: EasyMSSystem, option: EasyMSOption) -> Void {
+    if (option.id == n"easyms.demo.button") {
+      this.m_presses += 1;
+      return;
+    }
+    if (option.id == n"easyms.demo.confirm") {
+      this.m_confirms += 1;
+      return;
+    }
+    if (option.id == n"easyms.dbg.clear") {
+      this.m_presses = 0;
+      this.m_confirms = 0;
+      this.m_last = "Counters cleared.";
+      return;
+    }
+    if (option.id == n"easyms.dbg.ping") {
+      let found: array<EasyMSMod> = EasyMSBridge.Parse(EasyMSBridge.Send(system.Owner(), "list"));
+      let names: String = "";
+      let i: Int32 = 0;
+      while (i < found.Size()) {
+        if (StrLen(names) > 0) {
+          names = names + ", ";
+        }
+        names = names + found[i].name;
+        i += 1;
+      }
+      this.m_last = "Found " + IntToString(found.Size()) + ": " + names;
+      return;
+    }
+    if (option.id == n"easyms.dbg.selftest") {
+      this.m_last = EasyMSTestLink.Run(system, this.m_selfTests > 0);
+      this.m_selfTests += 1;
+      return;
+    }
+    if (option.id == n"easyms.dbg.roundtrip") {
+      this.m_last = EasyMSDebug.RoundTrip(system);
+    }
+  }
+
+  public static function RoundTrip(system: EasyMSSystem) -> String {
+    let report: String = "";
+    let mods: Int32 = system.RemoteCount();
+    if (mods == 0) {
+      return "No mods to test.";
+    }
+    let i: Int32 = 0;
+    while (i < mods) {
+      let option: EasyMSOption = system.FirstToggle(i);
+      let result: String = "no toggle";
+      if (option) {
+        system.Load(option);
+        let before: Bool = option.on;
+        system.SetBool(option.id, !before);
+        let flipped: Bool = system.GetBool(option.id);
+        system.SetBool(option.id, before);
+        let restored: Bool = system.GetBool(option.id);
+        result = "FAILED";
+        if (flipped != before && restored == before) {
+          result = "OK";
+        }
+      }
+      if (StrLen(report) > 0) {
+        report = report + ", ";
+      }
+      report = report + system.RemoteName(i) + " " + result;
+      i += 1;
+    }
+    return report;
+  }
+
+  public override function InfoText(system: EasyMSSystem, option: EasyMSOption) -> String {
+    if (option.id == n"easyms.dbg.mods") {
+      let count: Int32 = system.RemoteCount();
+      if (count == 0) {
+        return "none";
+      }
+      return IntToString(count) + ": " + system.RemoteNames();
+    }
+    if (option.id == n"easyms.dbg.lines") {
+      return EasyMSInk.Fit(system.BridgeStatus(), 48);
+    }
+    if (option.id == n"easyms.dbg.last") {
+      if (StrLen(this.m_last) == 0) {
+        return "-";
+      }
+      return EasyMSInk.Fit(this.m_last, 48);
+    }
+    if (option.id == n"easyms.demo.presses") {
+      return IntToString(this.m_presses);
+    }
+    if (option.id == n"easyms.demo.confirms") {
+      return IntToString(this.m_confirms);
+    }
+    return option.sideText;
+  }
+}

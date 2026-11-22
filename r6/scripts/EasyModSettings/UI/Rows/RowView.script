@@ -1,0 +1,115 @@
+public class EasyMSRowView {
+  public static function Setup(screen: EasyMSScreen, binding: EasyMSBinding) -> Void {
+    if (!binding) {
+      return;
+    }
+    let option: EasyMSOption = binding.option;
+    if (option.kind == EasyMSKind.Slider()) {
+      let slider: SettingsSelectorControllerFloat = binding.ctrl as SettingsSelectorControllerFloat;
+      if (slider) {
+        slider.EasyMSSetup(option.minValue, option.maxValue, option.value, option.step, option.decimals, option.unit);
+      }
+    }
+    if (option.kind == EasyMSKind.Choice()) {
+      let list: SettingsSelectorControllerListString = binding.ctrl as SettingsSelectorControllerListString;
+      if (list) {
+        list.EasyMSSetup(option.choices.Size());
+      }
+    }
+    EasyMSRowView.Show(screen, binding);
+  }
+
+  public static function Show(screen: EasyMSScreen, binding: EasyMSBinding) -> Void {
+    if (!binding) {
+      return;
+    }
+    let option: EasyMSOption = binding.option;
+    let kind: Int32 = option.kind;
+    if (kind == EasyMSKind.Toggle()) {
+      let toggle: SettingsSelectorControllerBool = binding.ctrl as SettingsSelectorControllerBool;
+      if (toggle) {
+        toggle.EasyMSShow(option.on);
+      }
+    } else {
+      if (kind == EasyMSKind.Slider()) {
+        let slider: SettingsSelectorControllerFloat = binding.ctrl as SettingsSelectorControllerFloat;
+        if (slider) {
+          slider.EasyMSShow(option.value, option.ValueText());
+          slider.EasyMSEnable(screen.IsActive(option));
+        }
+      } else {
+        if (kind == EasyMSKind.Choice()) {
+          let list: SettingsSelectorControllerListString = binding.ctrl as SettingsSelectorControllerListString;
+          if (list) {
+            list.EasyMSShow(option.choice, option.ValueText());
+          }
+        } else {
+          let button: SettingsSelectorControllerButton = binding.ctrl as SettingsSelectorControllerButton;
+          if (button) {
+            button.EasyMSShow(EasyMSRowView.ButtonText(screen, option), kind != EasyMSKind.Note());
+          }
+        }
+      }
+    }
+    let root: wref<inkWidget> = binding.root;
+    if (root) {
+      if (screen.IsActive(option) || kind == EasyMSKind.Note() || kind == EasyMSKind.Info()) {
+        root.SetState(n"Default");
+      } else {
+        root.SetState(n"Disabled");
+      }
+    }
+  }
+
+  public static function ButtonText(screen: EasyMSScreen, option: EasyMSOption) -> String {
+    if (option.kind == EasyMSKind.Confirm()) {
+      if (option.armed) {
+        return "CONFIRM?";
+      }
+      if (option.resetsMod) {
+        return "RESET";
+      }
+      return "PRESS TWICE";
+    }
+    if (option.kind == EasyMSKind.Submenu()) {
+      if (StrLen(option.sideText) > 0) {
+        return option.sideText;
+      }
+      return "OPEN";
+    }
+    if (option.kind == EasyMSKind.Info()) {
+      let info: String = screen.Value(option);
+      if (StrLen(info) == 0) {
+        return "-";
+      }
+      return info;
+    }
+    let side: String = screen.Value(option);
+    if (StrLen(side) == 0) {
+      return "RUN";
+    }
+    return side;
+  }
+
+  public static function Step(screen: EasyMSScreen, binding: EasyMSBinding, forward: Bool) -> Bool {
+    if (!binding || !binding.option.IsAdjustable()) {
+      return false;
+    }
+    if (!screen.Step(binding.option, forward)) {
+      return false;
+    }
+    screen.RefreshAll();
+    return true;
+  }
+
+  public static function Press(screen: EasyMSScreen, binding: EasyMSBinding) -> Int32 {
+    if (!binding) {
+      return 0;
+    }
+    let result: Int32 = screen.Press(binding.option);
+    if (result == 1) {
+      screen.RefreshAll();
+    }
+    return result;
+  }
+}

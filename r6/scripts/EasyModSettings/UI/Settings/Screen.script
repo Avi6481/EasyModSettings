@@ -1,0 +1,413 @@
+public class EasyMSBinding {
+  public let ctrl: wref<IScriptable>;
+  public let root: wref<inkWidget>;
+  public let option: EasyMSOption;
+  public let left: wref<inkWidget>;
+  public let right: wref<inkWidget>;
+  public let button: wref<inkWidget>;
+}
+
+public class EasyMSModCard {
+  public let root: wref<inkWidget>;
+  public let index: Int32;
+}
+
+public class EasyMSScreen {
+  private let m_system: wref<EasyMSSystem>;
+  private let m_ctrl: wref<inkGameController>;
+  private let m_mods: array<EasyMSMod>;
+  private let m_mod: Int32;
+  private let m_section: Int32;
+  private let m_page: EasyMSPage;
+  private let m_bindings: array<EasyMSBinding>;
+  private let m_cards: array<EasyMSModCard>;
+  private let m_cardScroll: wref<inkLogicController>;
+
+  public function Init(system: EasyMSSystem) -> Void {
+    this.m_system = system;
+  }
+
+  public function Begin(ctrl: wref<inkGameController>) -> Void {
+    this.m_ctrl = ctrl;
+    this.m_system.Rescan(ctrl.GetPlayerControlledObject());
+    this.m_mods = this.m_system.Tabs();
+    this.m_bindings.Clear();
+    this.m_cards.Clear();
+    this.m_cardScroll = NULL;
+    this.SetMod(0);
+  }
+
+  public function End() -> Void {
+    this.m_ctrl = NULL;
+    this.m_bindings.Clear();
+    this.m_cards.Clear();
+    this.m_cardScroll = NULL;
+    this.m_page = NULL;
+  }
+
+  public function IsMods(ctrl: wref<inkGameController>) -> Bool {
+    if (!this.m_ctrl || !ctrl) {
+      return false;
+    }
+    return this.m_ctrl == ctrl;
+  }
+
+  public function ModCount() -> Int32 {
+    return this.m_mods.Size();
+  }
+
+  public function ModLabel(index: Int32) -> String {
+    return this.m_mods[index].name;
+  }
+
+  public function ModIndex() -> Int32 {
+    return this.m_mod;
+  }
+
+  public function SetMod(index: Int32) -> Void {
+    this.m_page = NULL;
+    this.m_section = 0;
+    if (this.m_mods.Size() == 0) {
+      return;
+    }
+    this.m_mod = Clamp(index, 0, this.m_mods.Size() - 1);
+    this.m_page = this.m_mods[this.m_mod].root;
+  }
+
+  public function Mod() -> EasyMSMod {
+    if (this.m_mod < 0 || this.m_mod >= this.m_mods.Size()) {
+      return NULL;
+    }
+    return this.m_mods[this.m_mod];
+  }
+
+  public static function ListWidth() -> Float {
+    return 604.0;
+  }
+
+  public static function ListHeight() -> Float {
+    return 1552.0;
+  }
+
+  public static function ListPad() -> Float {
+    return 24.0;
+  }
+
+  public static function ListBarSpace() -> Float {
+    return 24.0;
+  }
+
+  public function SetCardScroll(scroll: wref<inkLogicController>) -> Void {
+    this.m_cardScroll = scroll;
+  }
+
+  public function CardScroller() -> inkScrollController {
+    return this.m_cardScroll as inkScrollController;
+  }
+
+  public function ClearCards() -> Void {
+    this.m_cards.Clear();
+  }
+
+  public function AddCard(root: wref<inkWidget>, index: Int32) -> Void {
+    let card: EasyMSModCard = new EasyMSModCard;
+    card.root = root;
+    card.index = index;
+    this.m_cards.PushBack(card);
+  }
+
+  public function ShowSelectedCard() -> Void {
+    let scroll: inkScrollController = this.CardScroller();
+    let i: Int32 = 0;
+    while (i < this.m_cards.Size()) {
+      if (this.m_cards[i].index == this.m_mod && scroll && this.m_cards[i].root) {
+        scroll.EnsureVisible(this.m_cards[i].root);
+      }
+      i += 1;
+    }
+  }
+
+  public function PaintCards() -> Void {
+    let i: Int32 = 0;
+    while (i < this.m_cards.Size()) {
+      let root: wref<inkWidget> = this.m_cards[i].root;
+      if (root) {
+        if (this.m_cards[i].index == this.m_mod) {
+          root.SetState(n"Selected");
+        } else {
+          root.SetState(n"Default");
+        }
+      }
+      i += 1;
+    }
+  }
+
+  public function CardMod(widget: wref<inkWidget>) -> Int32 {
+    let i: Int32 = 0;
+    while (i < this.m_cards.Size()) {
+      if (this.m_cards[i].root == widget) {
+        return this.m_cards[i].index;
+      }
+      i += 1;
+    }
+    return -1;
+  }
+
+  public function SectionCount() -> Int32 {
+    let mod: EasyMSMod = this.Mod();
+    if (!mod) {
+      return 0;
+    }
+    return mod.pages.Size();
+  }
+
+  public function SectionLabel(index: Int32) -> String {
+    let mod: EasyMSMod = this.Mod();
+    let page: EasyMSPage = mod.pages[index];
+    if (index == 0 && (StrLen(page.title) == 0 || StrCmp(page.title, mod.name) == 0)) {
+      return "General";
+    }
+    return page.title;
+  }
+
+  public function SectionIndex() -> Int32 {
+    return this.m_section;
+  }
+
+  public function SetSection(index: Int32) -> Void {
+    let mod: EasyMSMod = this.Mod();
+    if (!mod || mod.pages.Size() == 0) {
+      return;
+    }
+    this.m_section = Clamp(index, 0, mod.pages.Size() - 1);
+    this.m_page = mod.pages[this.m_section];
+  }
+
+  public function SectionOf(page: EasyMSPage) -> Int32 {
+    let mod: EasyMSMod = this.Mod();
+    if (!mod || !page) {
+      return -1;
+    }
+    let i: Int32 = 0;
+    while (i < mod.pages.Size()) {
+      if (mod.pages[i] == page) {
+        return i;
+      }
+      i += 1;
+    }
+    return -1;
+  }
+
+  public function Page() -> EasyMSPage {
+    return this.m_page;
+  }
+
+  public function Pop() -> Bool {
+    return false;
+  }
+
+  public function ClearRows() -> Void {
+    this.m_bindings.Clear();
+  }
+
+  public function Bind(ctrl: IScriptable, root: wref<inkWidget>, option: EasyMSOption) -> Void {
+    let binding: EasyMSBinding = new EasyMSBinding;
+    binding.ctrl = ctrl;
+    binding.root = root;
+    binding.option = option;
+    this.m_bindings.PushBack(binding);
+  }
+
+  public function Find(ctrl: IScriptable) -> EasyMSBinding {
+    if (!ctrl) {
+      return NULL;
+    }
+    let i: Int32 = 0;
+    while (i < this.m_bindings.Size()) {
+      if (this.m_bindings[i].ctrl == ctrl) {
+        return this.m_bindings[i];
+      }
+      i += 1;
+    }
+    return NULL;
+  }
+
+  public function FindRoot(widget: wref<inkWidget>) -> EasyMSBinding {
+    if (!widget) {
+      return NULL;
+    }
+    let i: Int32 = 0;
+    while (i < this.m_bindings.Size()) {
+      if (this.m_bindings[i].root == widget) {
+        return this.m_bindings[i];
+      }
+      i += 1;
+    }
+    return NULL;
+  }
+
+  public function FindWidget(widget: wref<inkWidget>) -> EasyMSBinding {
+    if (!widget) {
+      return NULL;
+    }
+    let i: Int32 = 0;
+    while (i < this.m_bindings.Size()) {
+      let b: EasyMSBinding = this.m_bindings[i];
+      if (b.root == widget || b.left == widget || b.right == widget || b.button == widget) {
+        return b;
+      }
+      i += 1;
+    }
+    return NULL;
+  }
+
+  public function Option(ctrl: IScriptable) -> EasyMSOption {
+    let binding: EasyMSBinding = this.Find(ctrl);
+    if (!binding) {
+      return NULL;
+    }
+    return binding.option;
+  }
+
+  public function IsActive(option: EasyMSOption) -> Bool {
+    return this.m_system.IsActive(option);
+  }
+
+  public function Value(option: EasyMSOption) -> String {
+    if (option.kind == EasyMSKind.Info() || option.kind == EasyMSKind.Button()) {
+      return this.m_system.InfoText(option);
+    }
+    return option.ValueText();
+  }
+
+  public function Step(option: EasyMSOption, forward: Bool) -> Bool {
+    if (!option || !this.IsActive(option)) {
+      return false;
+    }
+    if (option.kind == EasyMSKind.Toggle()) {
+      option.on = !option.on;
+      this.m_system.Changed(option);
+      return true;
+    }
+    let dir: Int32 = -1;
+    if (forward) {
+      dir = 1;
+    }
+    if (option.Nudge(dir)) {
+      this.m_system.Changed(option);
+      return true;
+    }
+    return false;
+  }
+
+  public function SetSlider(option: EasyMSOption, value: Float) -> Bool {
+    if (!option || option.kind != EasyMSKind.Slider() || !this.IsActive(option)) {
+      return false;
+    }
+    let snapped: Float = value;
+    if (option.step > 0.0) {
+      let steps: Float = (value - option.minValue) / option.step;
+      snapped = option.minValue + Cast<Float>(RoundF(steps)) * option.step;
+    }
+    snapped = ClampF(snapped, option.minValue, option.maxValue);
+    if (AbsF(snapped - option.value) < 0.0001) {
+      return false;
+    }
+    option.value = snapped;
+    this.m_system.Changed(option);
+    return true;
+  }
+
+  public function CommitSliders() -> Void {
+    let changed: Bool = false;
+    let i: Int32 = 0;
+    while (i < this.m_bindings.Size()) {
+      let b: EasyMSBinding = this.m_bindings[i];
+      if (b.option.kind == EasyMSKind.Slider()) {
+        let row: SettingsSelectorControllerFloat = b.ctrl as SettingsSelectorControllerFloat;
+        if (row && AbsF(row.EasyMSValue() - b.option.value) > 0.0001) {
+          if (this.SetSlider(b.option, row.EasyMSValue())) {
+            EasyMSLog.Trace("input: slider '" + b.option.label + "' = " + b.option.ValueText());
+            changed = true;
+          } else {
+            EasyMSRowView.Show(this, b);
+          }
+        }
+      }
+      i += 1;
+    }
+    if (changed) {
+      this.RefreshAll();
+    }
+  }
+
+  public function Press(option: EasyMSOption) -> Int32 {
+    if (!option || !this.IsActive(option)) {
+      return 0;
+    }
+    if (option.kind == EasyMSKind.Submenu()) {
+      return 3;
+    }
+    if (option.kind == EasyMSKind.Info()) {
+      return 1;
+    }
+    if (option.kind == EasyMSKind.Button()) {
+      this.m_system.Action(option);
+      this.m_system.LoadPage(this.m_page);
+      return 1;
+    }
+    if (option.kind == EasyMSKind.Confirm()) {
+      if (!option.armed) {
+        option.armed = true;
+        return 1;
+      }
+      option.armed = false;
+      if (option.resetsMod) {
+        this.m_system.ResetMod(option.mod);
+      } else {
+        this.m_system.Action(option);
+      }
+      this.m_system.LoadPage(this.m_page);
+      return 1;
+    }
+    return 0;
+  }
+
+  public function ResetMod() -> Void {
+    let mod: EasyMSMod = this.Mod();
+    if (mod) {
+      this.m_system.ResetMod(mod);
+      this.m_system.LoadPage(this.m_page);
+    }
+  }
+
+  public function Redraw() -> Void {
+    let settings: SettingsMainGameController = this.m_ctrl as SettingsMainGameController;
+    if (settings) {
+      settings.EasyMSPopulate();
+    }
+  }
+
+  public function RefreshAll() -> Void {
+    let i: Int32 = 0;
+    while (i < this.m_bindings.Size()) {
+      EasyMSRowView.Show(this, this.m_bindings[i]);
+      i += 1;
+    }
+  }
+
+  public function LoadPage() -> Void {
+    this.m_system.LoadPage(this.m_page);
+  }
+
+  public function DisarmAll() -> Void {
+    if (!this.m_page) {
+      return;
+    }
+    let i: Int32 = 0;
+    while (i < this.m_page.options.Size()) {
+      this.m_page.options[i].armed = false;
+      i += 1;
+    }
+  }
+}

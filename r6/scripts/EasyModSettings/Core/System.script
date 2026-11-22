@@ -1,0 +1,433 @@
+public class EasyMSSystem extends ScriptableSystem {
+  private let m_built: Bool;
+  private let m_local: array<EasyMSMod>;
+  private let m_remote: array<EasyMSMod>;
+  private let m_home: EasyMSPage;
+  private let m_screen: EasyMSScreen;
+  private let m_modsRequested: Bool;
+  private let m_owner: wref<GameObject>;
+  private let m_lastScan: String;
+  private let m_game: GameInstance;
+  private let m_hasGame: Bool;
+
+  public static function Get(game: GameInstance) -> EasyMSSystem {
+    return GameInstance.GetScriptableSystemsContainer(game).Get(n"EasyMSSystem") as EasyMSSystem;
+  }
+
+  public static function ForController(ctrl: wref<inkGameController>) -> EasyMSSystem {
+    if (!ctrl) {
+      return NULL;
+    }
+    let owner: GameObject = ctrl.GetPlayerControlledObject();
+    if (!owner) {
+      return NULL;
+    }
+    let system: EasyMSSystem = EasyMSSystem.Get(owner.GetGame());
+    if (system) {
+      system.Attach(owner);
+    }
+    return system;
+  }
+
+  public function Attach(owner: GameObject) -> Void {
+    this.m_game = owner.GetGame();
+    this.m_hasGame = true;
+    this.m_owner = owner;
+  }
+
+  public function Game() -> GameInstance {
+    if (this.m_hasGame) {
+      return this.m_game;
+    }
+    return this.GetGameInstance();
+  }
+
+  public function Owner() -> wref<GameObject> {
+    if (!this.m_owner) {
+      this.m_owner = GameInstance.GetPlayerSystem(this.Game()).GetLocalPlayerMainGameObject();
+    }
+    return this.m_owner;
+  }
+
+  public function Register(provider: EasyMSProvider) -> Void {
+    if (!provider) {
+      return;
+    }
+    let mod: EasyMSMod = new EasyMSMod;
+    mod.provider = provider;
+    mod.root = mod.NewPage("");
+    provider.Build(mod);
+    if (StrLen(mod.root.title) == 0) {
+      mod.root.title = mod.name;
+    }
+    this.m_local.PushBack(mod);
+  }
+
+  private function BuildLocal() -> Void {
+    if (this.m_built) {
+      return;
+    }
+    this.m_built = true;
+    EasyMSMods.Register(this);
+  }
+
+  public function Rescan(owner: wref<GameObject>) -> Void {
+    this.BuildLocal();
+    if (owner) {
+      this.m_owner = owner;
+    }
+    let reply: String = EasyMSBridge.Send(this.Owner(), "list");
+    this.m_remote = EasyMSBridge.Parse(reply);
+    this.m_lastScan = reply;
+    if (!EasyMSBridge.Head(this.Game())) {
+      EasyMSLog.Trace("bridge: the slot is empty (no mod has joined)");
+    } else {
+      EasyMSLog.Trace("bridge: " + IntToString(this.m_remote.Size()) + " mods answered: " + this.RemoteNames());
+    }
+    this.BuildHome();
+  }
+
+  private function BuildHome() -> Void {
+    this.m_home = new EasyMSPage;
+    this.m_home.title = "Mod Settings";
+    let i: Int32 = 0;
+    while (i < this.m_remote.Size()) {
+      this.AddHomeRow(this.m_remote[i]);
+      i += 1;
+    }
+    if (this.m_remote.Size() == 0) {
+      this.m_home.Note("No mods have shared settings yet.");
+    }
+    if (this.m_local.Size() > 0) {
+      this.m_home.Header("Easy Mod Settings");
+      let l: Int32 = 0;
+      while (l < this.m_local.Size()) {
+        this.AddHomeRow(this.m_local[l]);
+        l += 1;
+      }
+    }
+  }
+
+  private function AddHomeRow(mod: EasyMSMod) -> Void {
+    let tip: String = mod.description;
+    if (StrLen(mod.author) > 0) {
+      tip = tip + " (" + mod.author + ")";
+    }
+    this.m_home.Submenu(mod.name, tip, mod.root);
+    this.m_home.Side(mod.version);
+  }
+
+  public function Home() -> EasyMSPage {
+    if (!this.m_home) {
+      this.Rescan(NULL);
+    }
+    return this.m_home;
+  }
+
+  public function Tabs() -> array<EasyMSMod> {
+    this.BuildLocal();
+    let tabs: array<EasyMSMod>;
+    let i: Int32 = 0;
+    while (i < this.m_remote.Size()) {
+      tabs.PushBack(this.m_remote[i]);
+      i += 1;
+    }
+    i = 0;
+    while (i < this.m_local.Size()) {
+      tabs.PushBack(this.m_local[i]);
+      i += 1;
+    }
+    return tabs;
+  }
+
+  public function BridgeStatus() -> String {
+    if (!EasyMSBridge.Head(this.Game())) {
+      return "empty: no mod has joined";
+    }
+    let pong: String = EasyMSBridge.Send(this.Owner(), "ping");
+    let links: array<String> = StrSplit(pong, "\n##");
+    if (links.Size() <= 1) {
+      return "a link is stored but nothing answers";
+    }
+    let names: String = "";
+    let i: Int32 = 1;
+    while (i < links.Size()) {
+      if (StrLen(names) > 0) {
+        names = names + ", ";
+      }
+      names = names + links[i];
+      i += 1;
+    }
+    return names;
+  }
+
+  public function RemoteCount() -> Int32 {
+    return this.m_remote.Size();
+  }
+
+  public function RemoteNames() -> String {
+    let names: String = "";
+    let i: Int32 = 0;
+    while (i < this.m_remote.Size()) {
+      if (StrLen(names) > 0) {
+        names = names + ", ";
+      }
+      names = names + this.m_remote[i].name;
+      i += 1;
+    }
+    return names;
+  }
+
+  public function RemoteName(index: Int32) -> String {
+    if (index < 0 || index >= this.m_remote.Size()) {
+      return "";
+    }
+    return this.m_remote[index].name;
+  }
+
+  public function FirstToggle(index: Int32) -> EasyMSOption {
+    if (index < 0 || index >= this.m_remote.Size()) {
+      return NULL;
+    }
+    let pages: array<EasyMSPage> = this.m_remote[index].pages;
+    let p: Int32 = 0;
+    while (p < pages.Size()) {
+      let o: Int32 = 0;
+      while (o < pages[p].options.Size()) {
+        if (pages[p].options[o].kind == EasyMSKind.Toggle()) {
+          return pages[p].options[o];
+        }
+        o += 1;
+      }
+      p += 1;
+    }
+    return NULL;
+  }
+
+  public function LastScanLines() -> Int32 {
+    let lines: array<String> = StrSplit(this.m_lastScan, "\n");
+    return lines.Size();
+  }
+
+  private function FindIn(mods: array<EasyMSMod>, optionId: CName) -> EasyMSOption {
+    let m: Int32 = 0;
+    while (m < mods.Size()) {
+      let pages: array<EasyMSPage> = mods[m].pages;
+      let p: Int32 = 0;
+      while (p < pages.Size()) {
+        let options: array<EasyMSOption> = pages[p].options;
+        let o: Int32 = 0;
+        while (o < options.Size()) {
+          if (options[o].id == optionId) {
+            return options[o];
+          }
+          o += 1;
+        }
+        p += 1;
+      }
+      m += 1;
+    }
+    return NULL;
+  }
+
+  public function Find(optionId: CName) -> EasyMSOption {
+    this.BuildLocal();
+    let found: EasyMSOption = this.FindIn(this.m_local, optionId);
+    if (found) {
+      return found;
+    }
+    return this.FindIn(this.m_remote, optionId);
+  }
+
+  public function Load(option: EasyMSOption) -> Void {
+    if (!option || !option.IsStored()) {
+      return;
+    }
+    if (option.remote) {
+      option.ResetValue();
+      EasyMSBridge.Decode(option, EasyMSBridge.Ask(this.Owner(), "get", option.id));
+      return;
+    }
+    EasyMSStore.Load(this.Game(), option);
+  }
+
+  public function GetBool(optionId: CName) -> Bool {
+    let option: EasyMSOption = this.Find(optionId);
+    if (!option) {
+      return false;
+    }
+    this.Load(option);
+    return option.on;
+  }
+
+  public function GetFloat(optionId: CName) -> Float {
+    let option: EasyMSOption = this.Find(optionId);
+    if (!option) {
+      return 0.0;
+    }
+    this.Load(option);
+    return option.value;
+  }
+
+  public function GetInt(optionId: CName) -> Int32 {
+    return RoundF(this.GetFloat(optionId));
+  }
+
+  public function GetChoice(optionId: CName) -> Int32 {
+    let option: EasyMSOption = this.Find(optionId);
+    if (!option) {
+      return 0;
+    }
+    this.Load(option);
+    return option.choice;
+  }
+
+  public function SetBool(optionId: CName, on: Bool) -> Void {
+    let option: EasyMSOption = this.Find(optionId);
+    if (option && option.kind == EasyMSKind.Toggle() && option.on != on) {
+      option.on = on;
+      this.Changed(option);
+    }
+  }
+
+  public function SetFloat(optionId: CName, value: Float) -> Void {
+    let option: EasyMSOption = this.Find(optionId);
+    if (option && option.kind == EasyMSKind.Slider()) {
+      option.value = ClampF(value, option.minValue, option.maxValue);
+      this.Changed(option);
+    }
+  }
+
+  public function SetChoice(optionId: CName, choice: Int32) -> Void {
+    let option: EasyMSOption = this.Find(optionId);
+    if (option && option.kind == EasyMSKind.Choice()) {
+      option.choice = Clamp(choice, 0, Max(0, option.choices.Size() - 1));
+      this.Changed(option);
+    }
+  }
+
+  public function Changed(option: EasyMSOption) -> Void {
+    if (!option) {
+      return;
+    }
+    if (option.remote) {
+      let reply: String = EasyMSBridge.Send(this.Owner(), "set|" + NameToString(option.id) + "|" + EasyMSBridge.Encode(option));
+      if (EasyMSBridge.Answered(reply)) {
+        return;
+      }
+      return;
+    }
+    EasyMSStore.Save(this.Game(), option);
+    let mod: wref<EasyMSMod> = option.mod;
+    if (mod && mod.provider) {
+      mod.provider.OnChanged(this, option);
+    }
+  }
+
+  public function Action(option: EasyMSOption) -> Void {
+    if (option.remote) {
+      let answer: String = EasyMSBridge.Ask(this.Owner(), "action", option.id);
+      if (StrLen(answer) > 0) {
+        return;
+      }
+      return;
+    }
+    let mod: wref<EasyMSMod> = option.mod;
+    if (mod && mod.provider) {
+      mod.provider.OnAction(this, option);
+    }
+  }
+
+  public function InfoText(option: EasyMSOption) -> String {
+    if (option.remote) {
+      if (option.kind == EasyMSKind.Info()) {
+        return EasyMSBridge.Ask(this.Owner(), "info", option.id);
+      }
+      return option.sideText;
+    }
+    let mod: wref<EasyMSMod> = option.mod;
+    if (mod && mod.provider) {
+      return mod.provider.InfoText(this, option);
+    }
+    return option.sideText;
+  }
+
+  public function IsActive(option: EasyMSOption) -> Bool {
+    if (!option || option.disabled) {
+      return false;
+    }
+    if (option.dependsOn == n"None" || option.dependsOn == n"") {
+      return true;
+    }
+    let parent: EasyMSOption = this.Find(option.dependsOn);
+    if (!parent) {
+      return true;
+    }
+    return parent.on;
+  }
+
+  public function LoadPage(page: EasyMSPage) -> Void {
+    if (!page) {
+      return;
+    }
+    let i: Int32 = 0;
+    while (i < page.options.Size()) {
+      this.Load(page.options[i]);
+      if (page.options[i].dependsOn != n"None") {
+        let parent: EasyMSOption = this.Find(page.options[i].dependsOn);
+        if (parent) {
+          this.Load(parent);
+        }
+      }
+      i += 1;
+    }
+  }
+
+  public function ResetMod(mod: wref<EasyMSMod>) -> Void {
+    if (!mod) {
+      return;
+    }
+    let p: Int32 = 0;
+    while (p < mod.pages.Size()) {
+      let options: array<EasyMSOption> = mod.pages[p].options;
+      let o: Int32 = 0;
+      while (o < options.Size()) {
+        if (options[o].IsStored()) {
+          options[o].ResetValue();
+          if (options[o].remote) {
+            this.Changed(options[o]);
+          } else {
+            EasyMSStore.Forget(this.Game(), options[o]);
+            if (mod.provider) {
+              mod.provider.OnChanged(this, options[o]);
+            }
+          }
+        }
+        o += 1;
+      }
+      p += 1;
+    }
+  }
+
+  public function RequestMods() -> Void {
+    this.m_modsRequested = true;
+  }
+
+  public function CancelMods() -> Void {
+    this.m_modsRequested = false;
+  }
+
+  public function TakeModsRequest() -> Bool {
+    let requested: Bool = this.m_modsRequested;
+    this.m_modsRequested = false;
+    return requested;
+  }
+
+  public function Screen() -> EasyMSScreen {
+    if (!this.m_screen) {
+      this.m_screen = new EasyMSScreen;
+      this.m_screen.Init(this);
+    }
+    return this.m_screen;
+  }
+}
