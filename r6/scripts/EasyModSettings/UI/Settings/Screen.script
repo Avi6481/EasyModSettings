@@ -68,6 +68,7 @@ public class EasyMSScreen {
     this.m_page = NULL;
     this.m_section = 0;
     if (this.m_mods.Size() == 0) {
+      this.m_page = this.m_system.Home();
       return;
     }
     this.m_mod = Clamp(index, 0, this.m_mods.Size() - 1);

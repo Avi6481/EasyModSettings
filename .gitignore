@@ -8,3 +8,7 @@ build.bat
 publish.bat
 validate-consoles.bat
 about.json
+_upload/
+MODIO.md
+logo.png
+modio-description.html

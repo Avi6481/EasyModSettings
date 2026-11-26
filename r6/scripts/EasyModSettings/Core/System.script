@@ -6,7 +6,6 @@ public class EasyMSSystem extends ScriptableSystem {
   private let m_screen: EasyMSScreen;
   private let m_modsRequested: Bool;
   private let m_owner: wref<GameObject>;
-  private let m_lastScan: String;
   private let m_game: GameInstance;
   private let m_hasGame: Bool;
 
@@ -78,7 +77,6 @@ public class EasyMSSystem extends ScriptableSystem {
     }
     let reply: String = EasyMSBridge.Send(this.Owner(), "list");
     this.m_remote = EasyMSBridge.Parse(reply);
-    this.m_lastScan = reply;
     if (!EasyMSBridge.Head(this.Game())) {
       EasyMSLog.Trace("bridge: the slot is empty (no mod has joined)");
     } else {
@@ -140,31 +138,6 @@ public class EasyMSSystem extends ScriptableSystem {
     return tabs;
   }
 
-  public function BridgeStatus() -> String {
-    if (!EasyMSBridge.Head(this.Game())) {
-      return "empty: no mod has joined";
-    }
-    let pong: String = EasyMSBridge.Send(this.Owner(), "ping");
-    let links: array<String> = StrSplit(pong, "\n##");
-    if (links.Size() <= 1) {
-      return "a link is stored but nothing answers";
-    }
-    let names: String = "";
-    let i: Int32 = 1;
-    while (i < links.Size()) {
-      if (StrLen(names) > 0) {
-        names = names + ", ";
-      }
-      names = names + links[i];
-      i += 1;
-    }
-    return names;
-  }
-
-  public function RemoteCount() -> Int32 {
-    return this.m_remote.Size();
-  }
-
   public function RemoteNames() -> String {
     let names: String = "";
     let i: Int32 = 0;
@@ -176,37 +149,6 @@ public class EasyMSSystem extends ScriptableSystem {
       i += 1;
     }
     return names;
-  }
-
-  public function RemoteName(index: Int32) -> String {
-    if (index < 0 || index >= this.m_remote.Size()) {
-      return "";
-    }
-    return this.m_remote[index].name;
-  }
-
-  public function FirstToggle(index: Int32) -> EasyMSOption {
-    if (index < 0 || index >= this.m_remote.Size()) {
-      return NULL;
-    }
-    let pages: array<EasyMSPage> = this.m_remote[index].pages;
-    let p: Int32 = 0;
-    while (p < pages.Size()) {
-      let o: Int32 = 0;
-      while (o < pages[p].options.Size()) {
-        if (pages[p].options[o].kind == EasyMSKind.Toggle()) {
-          return pages[p].options[o];
-        }
-        o += 1;
-      }
-      p += 1;
-    }
-    return NULL;
-  }
-
-  public function LastScanLines() -> Int32 {
-    let lines: array<String> = StrSplit(this.m_lastScan, "\n");
-    return lines.Size();
   }
 
   private function FindIn(mods: array<EasyMSMod>, optionId: CName) -> EasyMSOption {

@@ -2,7 +2,7 @@
 
 Easy Mod Settings adds a Mod Settings button to the pause menu. It opens the game's own Settings screen with your mods in it, using the game's own toggles, sliders, lists and buttons.
 
-It's plain REDmod script, so it works on console.
+Works on console.
 
 Mods using it:
 
